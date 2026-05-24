@@ -395,22 +395,8 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <div id="prod-stats" class="sg"></div>
-
-  <div class="card" style="padding:0;overflow:hidden">
-    <div class="tbl-wrap">
-      <table class="inv-table" id="inv-table">
-        <thead><tr>
-          <th>商品</th><th>顏色／尺寸</th>
-          <th title="客人已下單尚未叫貨">預購</th>
-          <th title="已跟廠商叫貨，在路上">運送中</th>
-          <th title="運送中已分配給訂單">已分配</th>
-          <th title="已到工作室">現貨</th>
-          <th>操作</th>
-        </tr></thead>
-        <tbody id="inv-body"></tbody>
-      </table>
-    </div>
-  </div>
+  <button class="btn btn-outline btn-sm" onclick="openStockOverview()" style="margin-bottom:12px;width:100%;">📦 查看目前現貨</button>
+  <div id="inv-cards"></div>
 </div>
 
 <!-- ══════════════ 支出記錄 ══════════════ -->
@@ -600,6 +586,15 @@ tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- 現貨快覽 Modal -->
+<div class="overlay" id="modal-stock" onclick="closeOv('modal-stock',event)">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title">📦 目前現貨</div><button class="xbtn" onclick="closeM('modal-stock')">✕</button></div>
+    <p style="font-size:.76rem;color:var(--muted);margin-bottom:10px;">所有在工作室的現貨款式</p>
+    <div id="stock-overview-list"></div>
+  </div>
+</div>
+
 <!-- 退貨 Modal -->
 <div class="overlay" id="modal-return" onclick="closeOv('modal-return',event)">
   <div class="modal" style="max-width:420px">
@@ -740,7 +735,6 @@ function renderProducts(){
   const fs=document.getElementById('prod-fs').value;
   const list=products.filter(p=>(!q||p.name.toLowerCase().includes(q))&&(!fc||p.cat===fc)&&(!fs||p.status===fs));
 
-  // stats
   const totalStock=inventory.reduce((s,i)=>s+i.stock,0);
   const totalTransit=inventory.reduce((s,i)=>s+i.transit,0);
   const totalPre=inventory.reduce((s,i)=>s+i.preorder,0);
@@ -750,54 +744,98 @@ function renderProducts(){
     <div class="sc"><div class="sl">運送中</div><div class="sv b">${totalTransit}件</div></div>
     <div class="sc"><div class="sl">工作室現貨</div><div class="sv g">${totalStock}件</div></div>`;
 
-  const tbody=document.getElementById('inv-body');
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="ei">👗</div>還沒有商品</div></td></tr>`;return;}
+  const el=document.getElementById('inv-cards');
+  if(!list.length){el.innerHTML='<div class="empty"><div class="ei">👗</div>還沒有商品</div>';return;}
 
-  let rows='';
-  list.forEach(p=>{
+  el.innerHTML=list.map(p=>{
     const pairs=getPairs(p);
-    const catLabel=p.cat&&CAT_MAP[p.cat]?`<span style="font-size:.65rem;background:var(--warm);border-radius:3px;padding:1px 4px;margin-left:3px;">${CAT_MAP[p.cat]}</span>`:'';
-    const imgHtml=p.img?`<img src="${p.img}" class="inv-prod-img">`:'';
-    const comboHtml=p.combos&&p.combos.length?`<div style="font-size:.65rem;color:var(--orange);">🎁 ${p.combos.map(c=>c.qty+'件$'+c.price).join('/')}</div>`:'';
-    const priceHtml=p.price?`<div style="font-size:.67rem;color:var(--muted);">單件 ${fm(p.price)}</div>`:'';
+    const pinv=pairs.map(({c,s})=>({...getInv(p.id,c,s),c,s}));
+    const totalStock=pinv.reduce((s,i)=>s+i.stock,0);
+    const totalPre=pinv.reduce((s,i)=>s+i.preorder,0);
+    const totalTransit=pinv.reduce((s,i)=>s+i.transit,0);
+    const catLabel=p.cat&&CAT_MAP[p.cat]?`<span style="font-size:.63rem;background:var(--warm);border-radius:3px;padding:1px 5px;">${CAT_MAP[p.cat]}</span>`:'';
+    const chip=(n,cls)=>n>0?`<span class="stock-chip ${cls}">${n}</span>`:`<span class="stock-chip sc-zero">0</span>`;
 
-    pairs.forEach(({c,s},vi)=>{
+    const detailRows=pairs.map(({c,s})=>{
       const inv=getInv(p.id,c,s);
-      const varLabel=[c,s].filter(Boolean).join(' / ')||'均碼';
-      const chip=(n,cls)=>n>0?`<span class="stock-chip ${cls}">${n}</span>`:`<span class="stock-chip sc-zero">0</span>`;
+      const lbl=[c,s].filter(Boolean).join(' / ')||'均碼';
+      return `<tr>
+        <td style="font-size:.76rem;">${lbl}</td>
+        <td>${chip(inv.preorder,'sc-pre')}</td>
+        <td>${chip(inv.transit,'sc-transit')}</td>
+        <td>${chip(inv.allocated,'sc-allocated')}</td>
+        <td>${chip(inv.stock,'sc-stock')}</td>
+        <td><button class="btn btn-ghost btn-xs" onclick="quickEditInv('${p.id}','${c}','${s}')">調整</button></td>
+      </tr>`;
+    }).join('');
 
-      if(vi===0){
-        rows+=`<tr>
-          <td rowspan="${pairs.length}" style="vertical-align:top;padding-top:10px;">
-            ${imgHtml}<span class="inv-prod-name">${p.name}</span>${catLabel}
-            ${priceHtml}${comboHtml}
-            <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">
-              <button class="btn btn-outline btn-xs" onclick="editProd('${p.id}')">✏</button>
-              <button class="btn btn-ghost btn-xs" onclick="openInvEdit('${p.id}')">📦庫存</button>
-              ${p.status!=='closed'?`<button class="btn btn-ghost btn-xs" onclick="closeProd('${p.id}')">結單</button>`:'<span class="badge" style="background:#f8d7da;color:#842029;font-size:.62rem;">已結單</span>'}
-              <button class="bdel btn-xs" onclick="delProd('${p.id}')">刪</button>
-            </div>
-          </td>
-          <td>${varLabel}</td>
-          <td>${chip(inv.preorder,'sc-pre')}</td>
-          <td>${chip(inv.transit,'sc-transit')}</td>
-          <td>${chip(inv.allocated,'sc-allocated')}</td>
-          <td>${chip(inv.stock,'sc-stock')}</td>
-          <td><button class="btn btn-ghost btn-xs" onclick="quickEditInv('${p.id}','${c}','${s}')">調整</button></td>
-        </tr>`;
-      } else {
-        rows+=`<tr>
-          <td>${varLabel}</td>
-          <td>${chip(inv.preorder,'sc-pre')}</td>
-          <td>${chip(inv.transit,'sc-transit')}</td>
-          <td>${chip(inv.allocated,'sc-allocated')}</td>
-          <td>${chip(inv.stock,'sc-stock')}</td>
-          <td><button class="btn btn-ghost btn-xs" onclick="quickEditInv('${p.id}','${c}','${s}')">調整</button></td>
-        </tr>`;
-      }
+    return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:9px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;cursor:pointer;" onclick="toggleProdDetail('pd-${p.id}')">
+        ${p.img?`<img src="${p.img}" style="width:46px;height:46px;object-fit:cover;border-radius:7px;flex-shrink:0;">`:`<div style="width:46px;height:46px;background:var(--warm);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">👗</div>`}
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.86rem;display:flex;align-items:center;gap:5px;">${p.name} ${catLabel} ${p.status==='closed'?'<span class="badge" style="background:#f8d7da;color:#842029;font-size:.6rem;">已結單</span>':''}</div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+            ${totalPre>0?`<span class="stock-chip sc-pre">預購${totalPre}</span>`:''}
+            ${totalTransit>0?`<span class="stock-chip sc-transit">運送${totalTransit}</span>`:''}
+            ${totalStock>0?`<span class="stock-chip sc-stock">現貨${totalStock}</span>`:`<span style="font-size:.7rem;color:var(--muted);">無現貨</span>`}
+          </div>
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);" id="pd-arrow-${p.id}">▼</div>
+      </div>
+      <div id="pd-${p.id}" style="display:none;border-top:1px solid var(--border);">
+        <div style="padding:8px 13px;display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-xs" onclick="editProd('${p.id}')">✏ 編輯</button>
+          <button class="btn btn-ghost btn-xs" onclick="openInvEdit('${p.id}')">📦 調整庫存</button>
+          ${p.status!=='closed'?`<button class="btn btn-ghost btn-xs" onclick="closeProd('${p.id}')">結單</button>`:''}
+          <button class="bdel btn-xs" onclick="delProd('${p.id}')">刪除</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:.75rem;">
+            <tr style="background:var(--warm);">
+              <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--muted);font-size:.68rem;">款式</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;color:#856404;font-size:.68rem;">預購</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;color:#084298;font-size:.68rem;">運送中</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;color:#4a3580;font-size:.68rem;">已分配</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;color:#0a5523;font-size:.68rem;">現貨</th>
+              <th style="padding:6px 8px;"></th>
+            </tr>
+            ${detailRows}
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleProdDetail(id){
+  const el=document.getElementById(id);
+  const pid=id.replace('pd-','');
+  const arrow=document.getElementById('pd-arrow-'+pid);
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(arrow)arrow.textContent=isOpen?'▼':'▲';
+}
+
+function openStockOverview(){
+  const stockItems=[];
+  products.forEach(p=>{
+    getPairs(p).forEach(({c,s})=>{
+      const inv=getInv(p.id,c,s);
+      if(inv.stock>0) stockItems.push({prodName:p.name,color:c,size:s,stock:inv.stock,img:p.img});
     });
   });
-  tbody.innerHTML=rows;
+  const el=document.getElementById('stock-overview-list');
+  if(!stockItems.length){el.innerHTML='<div class="empty" style="padding:20px"><div class="ei">📦</div>目前沒有現貨</div>';document.getElementById('modal-stock').classList.add('open');return;}
+  el.innerHTML=stockItems.map(i=>`
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);">
+      ${i.img?`<img src="${i.img}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:38px;height:38px;background:var(--warm);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">👗</div>`}
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:.82rem;">${i.prodName}</div>
+        <div style="font-size:.72rem;color:var(--muted);">${[i.color,i.size].filter(Boolean).join(' / ')||'均碼'}</div>
+      </div>
+      <span class="stock-chip sc-stock">${i.stock}件</span>
+    </div>`).join('');
+  document.getElementById('modal-stock').classList.add('open');
 }
 
 function quickEditInv(pid,c,s){
