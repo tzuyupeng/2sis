@@ -473,8 +473,8 @@ tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div class="fr">
-      <div class="fg w2"><label>顏色（空格分開）</label><input type="text" id="p-colors" placeholder="粉色 白色 黑色"></div>
-      <div class="fg"><label>尺寸（空格分開）</label><input type="text" id="p-sizes" placeholder="S M L FREE"></div>
+      <div class="fg w2"><label>顏色（任何符號分開）</label><input type="text" id="p-colors" placeholder="粉色 白色/黑色、藍色"></div>
+      <div class="fg"><label>尺寸（任何符號分開）</label><input type="text" id="p-sizes" placeholder="S M L/FREE、XL"></div>
     </div>
     <div class="fr">
       <div class="fg fix90"><label>單件售價</label><input type="number" id="p-price" placeholder="680"></div>
@@ -644,7 +644,7 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 function fmtDate(iso){const d=new Date(iso);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function fm(n){return '$'+Number(n||0).toLocaleString();}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
-function splitVals(str){return (str||'').split(/[,\s]+/).map(s=>s.trim()).filter(Boolean);}
+function splitVals(str){return (str||'').split(/[,，、/／\s|｜;；]+/).map(s=>s.trim()).filter(Boolean);}
 
 // ════════════ LOCK ════════════
 const PW='0527';
