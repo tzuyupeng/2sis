@@ -395,7 +395,7 @@ tr:last-child td{border-bottom:none;}
   </div>
 
   <div id="prod-stats" class="sg"></div>
-  <button class="btn btn-outline btn-sm" onclick="openStockOverview()" style="margin-bottom:12px;width:100%;">📦 查看目前現貨</button>
+
   <div id="inv-cards"></div>
 </div>
 
@@ -740,9 +740,12 @@ function renderProducts(){
   const totalPre=inventory.reduce((s,i)=>s+i.preorder,0);
   document.getElementById('prod-stats').innerHTML=`
     <div class="sc"><div class="sl">商品款數</div><div class="sv">${products.length}</div></div>
-    <div class="sc"><div class="sl">預購中</div><div class="sv o">${totalPre}件</div></div>
-    <div class="sc"><div class="sl">運送中</div><div class="sv b">${totalTransit}件</div></div>
-    <div class="sc"><div class="sl">工作室現貨</div><div class="sv g">${totalStock}件</div></div>`;
+    <div class="sc" onclick="openInvOverview('preorder')" style="cursor:pointer;border:1.5px solid #f0dca0;">
+      <div class="sl">預購中 👆</div><div class="sv o">${totalPre}件</div></div>
+    <div class="sc" onclick="openInvOverview('transit')" style="cursor:pointer;border:1.5px solid #b8d4f0;">
+      <div class="sl">運送中 👆</div><div class="sv b">${totalTransit}件</div></div>
+    <div class="sc" onclick="openInvOverview('stock')" style="cursor:pointer;border:1.5px solid #b8e8b8;">
+      <div class="sl">工作室現貨 👆</div><div class="sv g">${totalStock}件</div></div>`;
 
   const el=document.getElementById('inv-cards');
   if(!list.length){el.innerHTML='<div class="empty"><div class="ei">👗</div>還沒有商品</div>';return;}
@@ -816,24 +819,35 @@ function toggleProdDetail(id){
   if(arrow)arrow.textContent=isOpen?'▼':'▲';
 }
 
-function openStockOverview(){
-  const stockItems=[];
+function openInvOverview(type){
+  const typeMap={
+    preorder:{label:'預購中',key:'preorder',cls:'sc-pre',icon:'📋',empty:'目前沒有預購中的商品'},
+    transit:{label:'運送中',key:'transit',cls:'sc-transit',icon:'🚚',empty:'目前沒有運送中的商品'},
+    stock:{label:'工作室現貨',key:'stock',cls:'sc-stock',icon:'📦',empty:'目前沒有現貨'},
+  };
+  const t=typeMap[type];
+  document.querySelector('#modal-stock .modal-title').textContent=t.icon+' '+t.label;
+  const items=[];
   products.forEach(p=>{
     getPairs(p).forEach(({c,s})=>{
       const inv=getInv(p.id,c,s);
-      if(inv.stock>0) stockItems.push({prodName:p.name,color:c,size:s,stock:inv.stock,img:p.img});
+      if(inv[t.key]>0) items.push({prodName:p.name,color:c,size:s,qty:inv[t.key],img:p.img});
     });
   });
   const el=document.getElementById('stock-overview-list');
-  if(!stockItems.length){el.innerHTML='<div class="empty" style="padding:20px"><div class="ei">📦</div>目前沒有現貨</div>';document.getElementById('modal-stock').classList.add('open');return;}
-  el.innerHTML=stockItems.map(i=>`
+  if(!items.length){
+    el.innerHTML=`<div class="empty" style="padding:20px"><div class="ei">${t.icon}</div>${t.empty}</div>`;
+    document.getElementById('modal-stock').classList.add('open');
+    return;
+  }
+  el.innerHTML=items.map(i=>`
     <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);">
       ${i.img?`<img src="${i.img}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:38px;height:38px;background:var(--warm);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">👗</div>`}
       <div style="flex:1;">
         <div style="font-weight:700;font-size:.82rem;">${i.prodName}</div>
         <div style="font-size:.72rem;color:var(--muted);">${[i.color,i.size].filter(Boolean).join(' / ')||'均碼'}</div>
       </div>
-      <span class="stock-chip sc-stock">${i.stock}件</span>
+      <span class="stock-chip ${t.cls}">${i.qty}件</span>
     </div>`).join('');
   document.getElementById('modal-stock').classList.add('open');
 }
