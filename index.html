@@ -549,10 +549,10 @@ tr:last-child td{border-bottom:none;}
     <div class="modal-hd"><div class="modal-title">新增支出</div><button class="xbtn" onclick="closeM('modal-exp')">✕</button></div>
     <div class="fr"><div class="fg"><label>日期</label><input type="date" id="e-date"></div></div>
     <div class="fr">
-      <div class="fg w2"><label>項目名稱（自己打）</label><input type="text" id="e-name" placeholder="例：第三批進貨衣服成本、DHL國際運費..."></div>
+      <div class="fg w2"><label>項目名稱（自己打）</label><input type="text" id="e-name" placeholder="例：防晒外套 brata 繞脖上衣" autocomplete="off" autocorrect="off" autocapitalize="off"></div>
       <div class="fg fix90"><label>金額</label><input type="number" id="e-amt" placeholder="0"></div>
     </div>
-    <div class="fr"><div class="fg w2"><label>備註</label><input type="text" id="e-note" placeholder="補充說明..."></div></div>
+    <div class="fr"><div class="fg w2"><label>備註</label><textarea id="e-note" placeholder="補充說明..." style="min-height:44px;"></textarea></div></div>
     <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px;">
       <button class="btn btn-ghost" onclick="closeM('modal-exp')">取消</button>
       <button class="btn btn-primary" onclick="saveExp()">儲存</button>
@@ -998,10 +998,20 @@ function addItem(name='',color='',size='',qty=1,price='',prodId='',src='preorder
   const d=document.createElement('div');d.className='irow';d.id=id;
   const p=prodId?products.find(x=>x.id===prodId):null;
   const inv=p?getInv(prodId,color,size):{preorder:0,transit:0,allocated:0,stock:0};
+  // build color/size selectors if product has options
+  const colorOpts=p&&p.colors?splitVals(p.colors):[];
+  const sizeOpts=p&&p.sizes?splitVals(p.sizes):[];
+  const colorField=colorOpts.length>0
+    ?`<select class="i-c">${colorOpts.map(c=>`<option value="${c}" ${color===c?'selected':''}>${c}</option>`).join('')}</select>`
+    :`<input class="i-c" value="${color}" placeholder="顏色">`;
+  const sizeField=sizeOpts.length>0
+    ?`<select class="i-s">${sizeOpts.map(s=>`<option value="${s}" ${size===s?'selected':''}>${s}</option>`).join('')}</select>`
+    :`<input class="i-s" value="${size}" placeholder="M/FREE">`;
+
   d.innerHTML=`
     <div class="fg in"><label>商品名稱</label><input class="i-n" value="${name}" placeholder="商品名稱" oninput="calcTotal()"></div>
-    <div class="fg ic"><label>顏色</label><input class="i-c" value="${color}" placeholder="顏色"></div>
-    <div class="fg is"><label>尺寸</label><input class="i-s" value="${size}" placeholder="M/FREE"></div>
+    <div class="fg ic"><label>顏色</label>${colorField}</div>
+    <div class="fg is"><label>尺寸</label>${sizeField}</div>
     <div class="fg iq"><label>數量</label><input type="number" class="i-q" value="${qty}" min="1" oninput="calcTotal();updateComboHint('${id}','${prodId}')"></div>
     <div class="fg ip"><label>單價</label><input type="number" class="i-p" value="${price}" placeholder="580" oninput="calcTotal()"></div>
     <div class="fg isrc"><label>來源</label>
@@ -1020,23 +1030,45 @@ function addItem(name='',color='',size='',qty=1,price='',prodId='',src='preorder
 }
 
 function updateComboHint(rowId,prodId){
-  const row=document.getElementById(rowId);if(!row)return;
-  const qty=parseInt(row.querySelector('.i-q').value)||0;
-  const hint=document.getElementById('ch-'+rowId);if(!hint)return;
-  const combo=getComboPrice(prodId,qty);
-  if(combo){
-    hint.textContent='🎁 '+combo.label;
-    row.querySelector('.i-p').value=Math.round(combo.unitPrice*100)/100;
-    calcTotal();
-  } else {
-    const p=products.find(x=>x.id===prodId);
-    hint.textContent=p&&p.combos&&p.combos.length?'組合：'+p.combos.map(c=>c.qty+'件$'+c.price).join(' / '):'';
-  }
+  // Just trigger calcTotal which now handles cross-row combo logic
+  calcTotal();
 }
 
 function calcTotal(){
+  // Group rows by prodId to calculate combo prices
+  const rows=Array.from(document.querySelectorAll('#items-wrap .irow'));
+  
+  // Build map of prodId -> total qty across all rows
+  const prodQtyMap={};
+  rows.forEach(r=>{
+    const pid=r.querySelector('.i-pid')?.value;
+    const qty=parseInt(r.querySelector('.i-q')?.value)||0;
+    if(pid) prodQtyMap[pid]=(prodQtyMap[pid]||0)+qty;
+  });
+
+  // Apply combo price if applicable
+  rows.forEach(r=>{
+    const pid=r.querySelector('.i-pid')?.value;
+    if(!pid) return;
+    const totalQty=prodQtyMap[pid]||0;
+    const combo=getComboPrice(pid,totalQty);
+    const hint=document.getElementById('ch-'+r.id);
+    if(combo&&totalQty>=2){
+      // set unit price for each row based on combo
+      r.querySelector('.i-p').value=Math.round(combo.unitPrice*100)/100;
+      if(hint) hint.textContent=`🎁 共${totalQty}件組合價，單價 ${fm(combo.unitPrice)}`;
+    } else {
+      // reset to single price if no combo
+      const p=products.find(x=>x.id===pid);
+      if(p&&p.price&&(!hint||!hint.textContent.includes('🎁'))){
+        // only reset if not manually changed
+      }
+      if(hint&&totalQty<2) hint.textContent=p&&p.combos&&p.combos.length?'組合：'+p.combos.map(c=>c.qty+'件$'+c.price).join(' / '):'';
+    }
+  });
+
   let total=0;
-  document.querySelectorAll('#items-wrap .irow').forEach(r=>total+=(parseFloat(r.querySelector('.i-q')?.value)||0)*(parseFloat(r.querySelector('.i-p')?.value)||0));
+  rows.forEach(r=>total+=(parseFloat(r.querySelector('.i-q')?.value)||0)*(parseFloat(r.querySelector('.i-p')?.value)||0));
   document.getElementById('total-disp').textContent=fm(total);
   const note=document.getElementById('ship-note');
   if(total>=SHIP_MIN)note.textContent='✓ 滿799 → 你幫付運費$38';
@@ -1061,7 +1093,7 @@ function renderPick(){
       <div style="width:40px;height:40px;border-radius:6px;overflow:hidden;background:var(--warm);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">${p.img?`<img src="${p.img}" style="width:40px;height:40px;object-fit:cover;">`:'👗'}</div>
       <div style="flex:1;">
         <div style="font-weight:700;font-size:.83rem;">${p.name} ${p.cat&&CAT_MAP[p.cat]?'<span style="font-size:.62rem;background:var(--warm);border-radius:3px;padding:1px 4px;">'+CAT_MAP[p.cat]+'</span>':''}</div>
-        <div style="font-size:.69rem;color:var(--muted);">${p.price?'單件'+fm(p.price):''} ${p.combos&&p.combos.length?'・🎁'+p.combos.map(c=>c.qty+'件$'+c.price).join('/'):''}</div>
+        <div style="font-size:.69rem;color:var(--muted);">${p.price?'單件'+fm(p.price):''} ${p.combos&&p.combos.length?'  🎁 '+p.combos.map(c=>c.qty+'件$'+c.price).join(' / '):''}</div>
         <div style="font-size:.69rem;color:var(--muted);">${p.colors||''} ${p.sizes?'・'+p.sizes:''}</div>
       </div>
       <button class="btn btn-rose btn-sm" onclick="pickProduct('${p.id}')">選擇</button>
@@ -1288,7 +1320,8 @@ function saveExp(){
   const amt=parseFloat(document.getElementById('e-amt').value);
   if(!name){toast('請填寫項目名稱');return;}
   if(!amt||amt<=0){toast('請輸入金額');return;}
-  expenses.unshift({id:uid(),date:document.getElementById('e-date').value,name,amount:amt,note:document.getElementById('e-note').value.trim()});
+  const expNote=document.getElementById('e-note').value||'';
+  expenses.unshift({id:uid(),date:document.getElementById('e-date').value,name,amount:amt,note:expNote});
   save();closeM('modal-exp');renderExpenses();toast('已新增支出');
 }
 function delExp(id){if(!confirm('確定刪除？'))return;expenses=expenses.filter(e=>e.id!==id);save();renderExpenses();toast('已刪除');}
