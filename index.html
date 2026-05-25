@@ -242,6 +242,7 @@ tr:last-child td{border-bottom:none;}
     <button class="hd-btn" onclick="exportBackup()">💾 備份</button>
     <button class="hd-btn" onclick="document.getElementById('imp-file').click()">📥 還原</button>
     <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importBackup(this)">
+    <button class="hd-btn" onclick="cleanupStorage()" title="清理圖片空間">🧹</button>
     <button class="hd-btn" onclick="lockNow()">🔒 鎖定</button>
   </div>
 </header>
@@ -703,6 +704,64 @@ function fmtDate(iso){const d=new Date(iso);return `${d.getMonth()+1}/${d.getDat
 function fm(n){return '$'+Number(n||0).toLocaleString();}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function splitVals(str){return (str||'').split(/[,，、/／\s|｜;；]+/).map(s=>s.trim()).filter(Boolean);}
+
+// ════════════ STORAGE CLEANUP ════════════
+function cleanupStorage(){
+  if(!confirm('將重新壓縮所有商品圖片以釋放空間，確定嗎？'))return;
+  
+  let count=0;
+  const compress=(dataUrl,cb)=>{
+    if(!dataUrl){cb('');return;}
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const MAX=250;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*(MAX/w));w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*(MAX/h));h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      cb(canvas.toDataURL('image/jpeg',0.4));
+    };
+    img.onerror=()=>cb('');
+    img.src=dataUrl;
+  };
+
+  // Process all products with images
+  const prods=products.filter(p=>p.img&&p.img.length>1000);
+  let processed=0;
+  
+  if(!prods.length){
+    toast('沒有需要清理的圖片');return;
+  }
+
+  toast(`正在壓縮 ${prods.length} 張圖片...`);
+  
+  prods.forEach(p=>{
+    compress(p.img,(compressed)=>{
+      p.img=compressed;
+      count++;
+      processed++;
+      if(processed===prods.length){
+        try{
+          save();
+          toast(`✅ 已清理完成！壓縮了 ${count} 張圖片，空間已釋放`);
+          renderProducts();
+        }catch(e){
+          // If still full, remove images entirely
+          products.forEach(p=>p.img='');
+          try{
+            save();
+            toast('⚠️ 空間不足，已移除所有圖片。請先備份再重新上傳圖片');
+            renderProducts();
+          }catch(e2){
+            toast('❌ 空間已滿，請還原備份後重新使用');
+          }
+        }
+      }
+    });
+  });
+}
 
 // ════════════ LOCK ════════════
 const PW='0527';
