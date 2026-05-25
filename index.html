@@ -236,6 +236,24 @@ tr:last-child td{border-bottom:none;}
 </div>
 <div class="idle-bar" id="idle-bar" style="width:100%"></div>
 
+<!-- SET PASSWORD MODAL -->
+<div class="overlay" id="modal-setpw">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-hd"><div class="modal-title">🔒 更改密碼</div></div>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px;">設定新的登入密碼</p>
+    <div class="fr"><div class="fg"><label>新密碼（至少4字元）</label>
+      <input type="password" id="spw1" placeholder="輸入密碼" oninput="chkPwStr()">
+      <div class="pw-str" id="pw-str-bar"></div>
+    </div></div>
+    <div class="fr"><div class="fg"><label>確認密碼</label><input type="password" id="spw2" placeholder="再輸入一次"></div></div>
+    <div style="color:#e07060;font-size:.73rem;margin-bottom:8px;min-height:14px;" id="spw-err"></div>
+    <div style="display:flex;gap:7px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeM('modal-setpw')">取消</button>
+      <button class="btn btn-primary" onclick="savePw()">儲存密碼</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <div><div class="hd-brand" style="color:#2a2820;">✦ 2Sis</div><div class="hd-sub" style="color:#8a7830;">Order Manager</div></div>
   <div class="hd-btns">
@@ -1094,39 +1112,41 @@ function closeProd(id){const p=products.find(x=>x.id===id);if(p){p.status='close
 function delProd(id){if(!confirm('確定刪除此商品？'))return;products=products.filter(p=>p.id!==id);inventory=inventory.filter(i=>i.prodId!==id);save();renderProducts();toast('已刪除');}
 function clearProdImg(){curProdImg='';resetProdImgBox();}
 function resetProdImgBox(){document.getElementById('p-img-wrap').innerHTML=`<div class="img-box"><input type="file" accept="image/*" onchange="handleProdImg(this)"><div style="font-size:1.3rem;margin-bottom:2px;">📷</div><div style="font-size:.68rem;color:var(--muted);">上傳商品照片</div></div>`;}
-function compressImg(file,maxPx,quality,callback){
-  const r=new FileReader();
-  r.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const canvas=document.createElement('canvas');
-      let w=img.width,h=img.height;
-      if(w>h){if(w>maxPx){h=Math.round(h*(maxPx/w));w=maxPx;}}
-      else{if(h>maxPx){w=Math.round(w*(maxPx/h));h=maxPx;}}
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      callback(canvas.toDataURL('image/jpeg',quality));
-    };
-    img.src=e.target.result;
-  };
-  r.readAsDataURL(file);
+// ════════ CLOUDINARY UPLOAD ════════
+const CLOUD_NAME='dbuw5ed8j';
+const UPLOAD_PRESET='jwqzowpp';
+
+function uploadToCloudinary(file, onSuccess, onError){
+  const wrap=document.getElementById('p-img-wrap');
+  wrap.innerHTML='<div style="padding:14px;text-align:center;font-size:.78rem;color:var(--muted);">⏳ 上傳中...</div>';
+  const formData=new FormData();
+  formData.append('file',file);
+  formData.append('upload_preset',UPLOAD_PRESET);
+  formData.append('folder','2sis');
+  fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/image/upload',{
+    method:'POST',body:formData
+  }).then(r=>r.json()).then(data=>{
+    if(data.secure_url){
+      onSuccess(data.secure_url);
+    } else {
+      onError(data.error?data.error.message:'上傳失敗');
+    }
+  }).catch(e=>onError(e.message));
 }
 
 function handleProdImg(inp){
   if(!inp.files[0])return;
-  // Try 500px 0.6 quality first, if still too big try 300px 0.4
-  compressImg(inp.files[0],500,0.6,function(result){
-    if(result.length>300000){
-      // Still too big, compress more
-      compressImg(inp.files[0],300,0.4,function(result2){
-        curProdImg=result2;
-        document.getElementById('p-img-wrap').innerHTML=`<div class="img-prev-wrap"><img class="img-prev" src="${curProdImg}"><button class="img-rm" onclick="clearProdImg()">✕</button></div>`;
-      });
-    } else {
-      curProdImg=result;
-      document.getElementById('p-img-wrap').innerHTML=`<div class="img-prev-wrap"><img class="img-prev" src="${curProdImg}"><button class="img-rm" onclick="clearProdImg()">✕</button></div>`;
+  uploadToCloudinary(inp.files[0],
+    function(url){
+      curProdImg=url;
+      document.getElementById('p-img-wrap').innerHTML='<div class="img-prev-wrap"><img class="img-prev" src="'+url+'"><button class="img-rm" onclick="clearProdImg()">✕</button></div>';
+      toast('✅ 圖片已上傳到雲端！');
+    },
+    function(err){
+      toast('❌ 圖片上傳失敗：'+err);
+      resetProdImgBox();
     }
-  });
+  );
 }
 function saveProd(){
   const name=document.getElementById('p-name').value.trim();
@@ -2154,22 +2174,7 @@ function openPickForOrder(){
   document.getElementById('modal-pick').classList.add('open');
 }
 
-// Override pickProduct to handle both cases
-const _origPickProduct=window.pickProduct;
-window.pickProduct=function(pid){
-  if(window._pickForOrder){
-    window._pickForOrder=false;
-    const p=products.find(x=>x.id===pid);if(!p)return;
-    addNewItemRow(p.name,splitVals(p.colors)[0]||'',splitVals(p.sizes)[0]||'',1,p.price||'',p.id);
-    closeM('modal-pick');
-  } else {
-    const p=products.find(x=>x.id===pid);if(!p)return;
-    const firstSize=splitVals(p.sizes)[0]||'';
-    const firstColor=splitVals(p.colors)[0]||'';
-    addItem(p.name,firstColor,firstSize,1,p.price||'',p.id,'preorder');
-    closeM('modal-pick');
-  }
-};
+// pickProduct handles both normal order and add-to-order cases
 
 function saveAddItemToOrder(){
   const o=orders.find(x=>x.id===addItemOrderId);if(!o)return;
