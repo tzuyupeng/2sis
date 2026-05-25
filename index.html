@@ -1400,8 +1400,20 @@ function pickProduct(pid){
   const p=products.find(x=>x.id===pid);if(!p)return;
   const firstSize=splitVals(p.sizes)[0]||'';
   const firstColor=splitVals(p.colors)[0]||'';
+  // Make sure form is visible before adding item
+  const wrap=document.getElementById('order-form-wrap');
+  if(wrap&&wrap.style.display==='none'){
+    wrap.style.display='block';
+    const btn=document.getElementById('add-order-btn');
+    if(btn){btn.textContent='✕ 收起';btn.className='btn btn-ghost';}
+  }
   addItem(p.name,firstColor,firstSize,1,p.price||'',p.id,'preorder');
   closeM('modal-pick');
+  // Scroll to items
+  setTimeout(function(){
+    const iw=document.getElementById('items-wrap');
+    if(iw)iw.scrollIntoView({behavior:'smooth',block:'center'});
+  },300);
 }
 
 function parseLine(){
