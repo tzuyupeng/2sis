@@ -1349,7 +1349,25 @@ function getItems(){
 function handleOrderImg(inp){if(!inp.files[0])return;const r=new FileReader();r.onload=e=>{curOrderImg=e.target.result;document.getElementById('order-img-wrap').innerHTML=`<div class="img-prev-wrap"><img class="img-prev" src="${curOrderImg}"><button class="img-rm" onclick="clearOrderImg()">✕</button></div>`;};r.readAsDataURL(inp.files[0]);}
 function clearOrderImg(){curOrderImg='';document.getElementById('order-img-wrap').innerHTML=`<div class="img-box"><input type="file" accept="image/*" onchange="handleOrderImg(this)"><div style="font-size:1.4rem;margin-bottom:2px;">📷</div><div style="font-size:.7rem;color:var(--muted);">點擊上傳（可不填）</div></div>`;}
 
-function openPickProd(){document.getElementById('pick-q').value='';document.getElementById('pick-cat').value='';renderPick();document.getElementById('modal-pick').classList.add('open');}
+function openPickProd(){
+  // Make sure order form is visible
+  const wrap=document.getElementById('order-form-wrap');
+  if(wrap&&wrap.style.display==='none'){
+    wrap.style.display='block';
+    document.getElementById('add-order-btn').textContent='✕ 收起';
+    document.getElementById('add-order-btn').className='btn btn-ghost';
+  }
+  // Remove empty rows
+  document.querySelectorAll('#items-wrap .irow').forEach(r=>{
+    const nameEl=r.querySelector('.i-n');
+    if(!nameEl||!nameEl.value.trim()) r.remove();
+  });
+  document.getElementById('pick-q').value='';
+  document.getElementById('pick-cat').value='';
+  window._pickForOrder=false;
+  renderPick();
+  document.getElementById('modal-pick').classList.add('open');
+}
 function renderPick(){
   const q=(document.getElementById('pick-q').value||'').toLowerCase();
   const pc=document.getElementById('pick-cat').value;
