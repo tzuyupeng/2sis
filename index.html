@@ -1423,8 +1423,6 @@ function openAddExp(){
   document.getElementById('e-note').value='';
   document.getElementById('modal-exp').classList.add('open');
 }
-let editExpId=null;
-
 function editExp(id){
   const e=expenses.find(x=>x.id===id);if(!e)return;
   editExpId=id;
@@ -1866,6 +1864,7 @@ function confirmReturn(){
 // ════════════ SHOPEE EDIT ════════════
 let editShopeeId=null;
 let shopeeEditCnt=0;
+let editExpId=null;
 
 function editShopeeOrder(id){
   const o=orders.find(x=>x.id===id);if(!o)return;
