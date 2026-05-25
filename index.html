@@ -1178,10 +1178,46 @@ function parseLine(){
   const msg=document.getElementById('lineMsg').value;
   if(!msg.trim()){toast('請先貼上LINE訊息');return;}
   const get=(pats,src)=>{for(const p of pats){const m=src.match(p);if(m)return m[1].trim();}return '';};
-  document.getElementById('f-line').value=get([/LINE[名稱暱稱]*[：:]\s*(.+)/i,/暱稱[：:]\s*(.+)/],msg);
-  document.getElementById('f-real').value=get([/(?:本名|姓名|收件人)[：:]\s*(.+)/],msg);
-  document.getElementById('f-phone').value=get([/電話[：:]\s*([\d\-]+)/],msg);
-  document.getElementById('f-store').value=get([/(?:7-?11|超商)[店名]*[：:]\s*(.+)/i,/店名[：:]\s*(.+)/],msg);
+
+  // Try labeled format first
+  let linename=get([/LINE[名稱暱稱]*[：:]\s*(.+)/i,/暱稱[：:]\s*(.+)/],msg);
+  let realname=get([/(?:本名|姓名|收件人)[：:]\s*(.+)/],msg);
+  let phone=get([/電話[：:]\s*([\d\-]+)/],msg);
+  let store=get([/(?:7-?11|超商)[店名]*[：:]\s*(.+)/i,/店名[：:]\s*(.+)/],msg);
+
+  // Smart detection for unlabeled format
+  if(!phone||!realname||!store){
+    const lines=msg.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    lines.forEach(function(line){
+      // Phone: starts with 09 followed by digits
+      if(!phone&&/^09\d{8}$/.test(line.replace(/[-\s]/g,''))){
+        phone=line.trim();return;
+      }
+      // Store: contains 門市 or 店
+      if(!store&&/(門市|便利商店|超商|7-11|7eleven|全家門市)/.test(line)){
+        store=line.trim();return;
+      }
+      // LINE name hint
+      if(!linename&&/(LINE|line|賴)/.test(line)){
+        linename=line.replace(/^.*(LINE|line|賴)[名稱：: ]*/,'').trim();return;
+      }
+    });
+    // Short Chinese name 2-5 chars = real name
+    if(!realname){
+      lines.forEach(function(line){
+        if(line===phone||line===store||line===linename)return;
+        if(/^[\u4e00-\u9fff]{2,5}$/.test(line)&&!realname){
+          realname=line;
+        }
+      });
+    }
+    if(!linename&&realname) linename=realname;
+  }
+
+  document.getElementById('f-line').value=linename;
+  document.getElementById('f-real').value=realname;
+  document.getElementById('f-phone').value=phone;
+  document.getElementById('f-store').value=store;
   document.getElementById('items-wrap').innerHTML='';iCnt=0;
   const lines=msg.split('\n');let found=false;
   lines.forEach(l=>{
