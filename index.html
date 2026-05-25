@@ -326,7 +326,24 @@ tr:last-child td{border-bottom:none;}
   </div>
   </div><!-- end order-form-wrap -->
 
-  <!-- 編輯蝦皮訂單 Modal -->
+  <!-- 新增商品到訂單 Modal -->
+<div class="overlay" id="modal-add-item" onclick="closeOv('modal-add-item',event)">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd"><div class="modal-title">➕ 新增商品到訂單</div><button class="xbtn" onclick="closeM('modal-add-item')">✕</button></div>
+    <p style="font-size:.77rem;color:var(--muted);margin-bottom:11px;" id="add-item-order-name"></p>
+    <div id="add-item-rows"></div>
+    <div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="addNewItemRow()">＋ 手動新增</button>
+      <button class="btn btn-rose btn-sm" onclick="openPickForOrder()">👗 從商品選</button>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:10px;">
+      <button class="btn btn-ghost" onclick="closeM('modal-add-item')">取消</button>
+      <button class="btn btn-primary" onclick="saveAddItemToOrder()">✓ 加入訂單</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯蝦皮訂單 Modal -->
 <div class="overlay" id="modal-shopee-edit" onclick="closeOv('modal-shopee-edit',event)">
   <div class="modal">
     <div class="modal-hd"><div class="modal-title">✏️ 編輯蝦皮出貨</div><button class="xbtn" onclick="closeM('modal-shopee-edit')">✕</button></div>
@@ -1374,6 +1391,15 @@ function viewOrder(id){
   const tq=o.items.reduce((s,i)=>s+i.qty,0);
   document.getElementById('mo-title').textContent='訂單 — '+o.linename;
   const srcLabel={preorder:'預購',allocated:'運送中分配',stock:'現貨'};
+  // get item stock status
+  const getItemStatus=(item)=>{
+    if(!item.prodId) return {label:'預購中',cls:'sc-pre',icon:'⏳'};
+    const inv=getInv(item.prodId,item.color,item.size);
+    if(inv.stock>=item.qty) return {label:'已到工作室 ✅',cls:'sc-stock',icon:'✅'};
+    if(inv.transit>0||inv.allocated>0) return {label:'運送中 🚚',cls:'sc-transit',icon:'🚚'};
+    return {label:'預購中 ⏳',cls:'sc-pre',icon:'⏳'};
+  };
+
   document.getElementById('mo-body').innerHTML=`
     ${o.img?`<img src="${o.img}" style="width:100%;max-height:120px;object-fit:cover;border-radius:7px;margin-bottom:9px;">`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:.82rem;">
@@ -1384,11 +1410,20 @@ function viewOrder(id){
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">付款</div>${o.pay}</div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">付款狀態</div><span class="badge ${o.paidStatus==='paid'?'b-paid':'b-unpaid'}">${o.paidStatus==='paid'?'已付款':'待確認'}</span></div>
     </div>
-    <table style="width:100%;font-size:.76rem;margin-bottom:9px;">
-      <tr style="background:var(--warm)"><th style="border-radius:0">商品</th><th style="border-radius:0">顏色</th><th style="border-radius:0">尺寸</th><th style="border-radius:0">來源</th><th style="border-radius:0">數量</th><th style="border-radius:0">單價</th><th style="border-radius:0">小計</th></tr>
-      ${o.items.map(i=>`<tr><td>${i.name}</td><td>${i.color||'—'}</td><td>${i.size||'—'}</td><td><span style="font-size:.65rem;">${srcLabel[i.src]||'預購'}</span></td><td>${i.qty}</td><td>${fm(i.price)}</td><td>${fm(i.qty*i.price)}</td></tr>`).join('')}
-    </table>
-    <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:3px;"><span>商品小計</span><b>${fm(o.subtotal)}</b></div>
+
+    <div style="font-size:.76rem;font-weight:700;color:var(--mauve);margin-bottom:6px;">🛍️ 商品到貨狀態</div>
+    ${o.items.map(i=>{
+      const st=getItemStatus(i);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:4px;background:var(--warm);border-radius:7px;font-size:.78rem;">
+        <span style="font-size:1rem;">${st.icon}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;">${i.name}${i.color?' · '+i.color:''}${i.size?' · '+i.size:''} ×${i.qty}</div>
+          <div style="font-size:.7rem;color:var(--muted);">${st.label} · ${fm(i.qty*i.price)}</div>
+        </div>
+      </div>`;
+    }).join('')}
+
+    <div style="display:flex;justify-content:space-between;font-size:.8rem;margin:10px 0 3px;"><span>商品小計</span><b>${fm(o.subtotal)}</b></div>
     <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:3px;"><span>運費</span><span>${o.freeShip?'免運（你付$38）':'客人付$38'}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:10px;"><span>已交貨</span><b>${o.deliveredQty||0}/${tq}件</b></div>
     ${o.note?`<div style="font-size:.75rem;background:var(--warm);padding:5px 8px;border-radius:6px;margin-bottom:9px;">備註：${o.note}</div>`:''}
@@ -1400,6 +1435,7 @@ function viewOrder(id){
         </div>`).join('')}
     </div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="openAddItemToOrder('${o.id}')">➕ 新增商品</button>
       <button class="btn btn-outline btn-sm" onclick="copyMaihuo('${o.id}')">🏪 複製全部</button>
       <button class="btn btn-primary btn-sm" onclick="copyShipMsg('${o.id}')">📋 複製出貨通知</button>
     </div>`;
@@ -1890,6 +1926,112 @@ function confirmReturn(){
   renderList();
   renderProducts();
   toast(`✅ 退貨完成！已退回 ${returnedItems.reduce((s,i)=>s+i.returnQty,0)} 件庫存${shipFee>0?'，運費$'+shipFee+'已記入支出':''}`)
+}
+
+// ════════════ ADD ITEM TO ORDER ════════════
+let addItemOrderId=null;
+let addItemRowCnt=0;
+
+function openAddItemToOrder(orderId){
+  addItemOrderId=orderId;
+  addItemRowCnt=0;
+  const o=orders.find(x=>x.id===orderId);
+  document.getElementById('add-item-order-name').textContent=o?`客人：${o.linename}`:'';
+  document.getElementById('add-item-rows').innerHTML='';
+  addNewItemRow();
+  closeM('modal-order');
+  document.getElementById('modal-add-item').classList.add('open');
+}
+
+function addNewItemRow(name='',color='',size='',qty=1,price='',prodId=''){
+  addItemRowCnt++;
+  const id='air-'+addItemRowCnt;
+  const p=prodId?products.find(x=>x.id===prodId):null;
+  const colorOpts=p&&p.colors?splitVals(p.colors):[];
+  const sizeOpts=p&&p.sizes?splitVals(p.sizes):[];
+  let colorField,sizeField;
+  if(colorOpts.length>0){
+    const selColor=color||colorOpts[0];
+    colorField='<select class="air-c" style="background:var(--cream);">'+colorOpts.map(cv=>'<option value="'+cv+'"'+(selColor===cv?' selected':'')+'>'+cv+'</option>').join('')+'</select>';
+  } else {
+    colorField='<input class="air-c" value="'+color+'" placeholder="顏色">';
+  }
+  if(sizeOpts.length>0){
+    const selSize=size||sizeOpts[0];
+    sizeField='<select class="air-s" style="background:var(--cream);">'+sizeOpts.map(sv=>'<option value="'+sv+'"'+(selSize===sv?' selected':'')+'>'+sv+'</option>').join('')+'</select>';
+  } else {
+    sizeField='<input class="air-s" value="'+size+'" placeholder="M/FREE">';
+  }
+  const d=document.createElement('div');
+  d.className='irow';d.id=id;
+  d.innerHTML=`
+    <div class="fg in"><label>商品名稱</label><input class="air-n" value="${name}" placeholder="商品名稱"></div>
+    <div class="fg ic"><label>顏色</label>${colorField}</div>
+    <div class="fg is"><label>尺寸</label>${sizeField}</div>
+    <div class="fg iq"><label>數量</label><input type="number" class="air-q" value="${qty}" min="1"></div>
+    <div class="fg ip"><label>單價</label><input type="number" class="air-p" value="${price}" placeholder="580"></div>
+    <input type="hidden" class="air-pid" value="${prodId}">
+    <button class="bdel" onclick="document.getElementById('${id}').remove()">✕</button>`;
+  document.getElementById('add-item-rows').appendChild(d);
+}
+
+function openPickForOrder(){
+  document.getElementById('pick-q').value='';
+  document.getElementById('pick-cat').value='';
+  // Temporarily override pickProduct to add to order instead
+  window._pickForOrder=true;
+  renderPick();
+  document.getElementById('modal-pick').classList.add('open');
+}
+
+// Override pickProduct to handle both cases
+const _origPickProduct=window.pickProduct;
+window.pickProduct=function(pid){
+  if(window._pickForOrder){
+    window._pickForOrder=false;
+    const p=products.find(x=>x.id===pid);if(!p)return;
+    addNewItemRow(p.name,splitVals(p.colors)[0]||'',splitVals(p.sizes)[0]||'',1,p.price||'',p.id);
+    closeM('modal-pick');
+  } else {
+    const p=products.find(x=>x.id===pid);if(!p)return;
+    const firstSize=splitVals(p.sizes)[0]||'';
+    const firstColor=splitVals(p.colors)[0]||'';
+    addItem(p.name,firstColor,firstSize,1,p.price||'',p.id,'preorder');
+    closeM('modal-pick');
+  }
+};
+
+function saveAddItemToOrder(){
+  const o=orders.find(x=>x.id===addItemOrderId);if(!o)return;
+  const rows=Array.from(document.querySelectorAll('#add-item-rows .irow'));
+  const newItems=rows.map(r=>({
+    name:(r.querySelector('.air-n')?.value||'').trim(),
+    color:(r.querySelector('.air-c')?.value||'').trim(),
+    size:(r.querySelector('.air-s')?.value||'').trim(),
+    qty:parseInt(r.querySelector('.air-q')?.value)||1,
+    price:parseFloat(r.querySelector('.air-p')?.value)||0,
+    prodId:r.querySelector('.air-pid')?.value||'',
+    src:'preorder',
+  })).filter(i=>i.name);
+  if(!newItems.length){toast('請至少新增一件商品');return;}
+
+  // Add items to order
+  o.items=[...o.items,...newItems];
+  const addedAmt=newItems.reduce((s,i)=>s+i.qty*i.price,0);
+  o.subtotal+=addedAmt;
+  o.freeShip=o.subtotal>=SHIP_MIN;
+
+  // Update inventory preorder
+  newItems.forEach(i=>{
+    if(!i.prodId)return;
+    const inv=getInv(i.prodId,i.color,i.size);
+    setInv(i.prodId,i.color,i.size,{...inv,preorder:inv.preorder+i.qty});
+  });
+
+  save();
+  closeM('modal-add-item');
+  renderList();
+  toast(`✅ 已新增 ${newItems.length} 件商品到 ${o.linename} 的訂單！`);
 }
 
 // ════════════ SHOPEE EDIT ════════════
