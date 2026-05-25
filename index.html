@@ -1250,7 +1250,13 @@ function addItem(name='',color='',size='',qty=1,price='',prodId='',src='preorder
     <div class="fg is"><label>尺寸</label>${sizeField}</div>
     <div class="fg iq"><label>數量</label><input type="number" class="i-q" value="${qty}" min="1" oninput="calcTotal();updateComboHint('${id}','${prodId}')"></div>
     <div class="fg ip"><label>單價</label><input type="number" class="i-p" value="${price}" placeholder="580" oninput="calcTotal()"></div>
-    ${comboSelector}
+    ${(function(){
+      if(!prodId) return '';
+      var _p=products.find(function(x){return x.id===prodId;});
+      if(!_p||!_p.combos||!_p.combos.length) return '';
+      var opts='<option value="">不套用組合價</option>'+_p.combos.map(function(c){return '<option value="'+c.price+'/'+c.qty+'">'+c.qty+'件組合$'+c.price+'（單價$'+Math.round(c.price/c.qty)+'）</option>';}).join('');
+      return '<div class="fg" style="flex:0 0 155px;"><label>套用組合價</label><select class="i-combo" onchange="applyCombo(\''+id+'\',this.value)" style="background:var(--cream);">'+opts+'</select></div>';
+    })()}
     <div class="fg isrc"><label>來源</label>
       <select class="i-src">
         <option value="preorder" ${src==='preorder'?'selected':''}>📋 預購</option>
