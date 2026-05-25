@@ -1369,23 +1369,32 @@ function openPickProd(){
   document.getElementById('modal-pick').classList.add('open');
 }
 function renderPick(){
-  const q=(document.getElementById('pick-q').value||'').toLowerCase();
-  const pc=document.getElementById('pick-cat').value;
-  const list=products.filter(p=>p.status!=='closed'&&(!q||p.name.toLowerCase().includes(q))&&(!pc||p.cat===pc));
-  const el=document.getElementById('pick-list');
+  var q=(document.getElementById('pick-q').value||'').toLowerCase();
+  var pc=document.getElementById('pick-cat').value;
+  var list=products.filter(function(p){return p.status!=='closed'&&(!q||p.name.toLowerCase().includes(q))&&(!pc||p.cat===pc);});
+  var el=document.getElementById('pick-list');
   if(!list.length){el.innerHTML='<div class="empty" style="padding:14px">沒有可選商品</div>';return;}
-  el.innerHTML=list.map(p=>{
-    const inv_total=getPairs(p).reduce((s,{c,si})=>{const inv=getInv(p.id,c,si||'');return s+inv.stock;},{});
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
-      <div style="width:40px;height:40px;border-radius:6px;overflow:hidden;background:var(--warm);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">${p.img?`<img src="${p.img}" style="width:40px;height:40px;object-fit:cover;">`:'👗'}</div>
-      <div style="flex:1;">
-        <div style="font-weight:700;font-size:.83rem;">${p.name} ${p.cat&&CAT_MAP[p.cat]?'<span style="font-size:.62rem;background:var(--warm);border-radius:3px;padding:1px 4px;">'+CAT_MAP[p.cat]+'</span>':''}</div>
-        <div style="font-size:.69rem;color:var(--muted);">${p.price?'單件'+fm(p.price):''} ${p.combos&&p.combos.length?'  🎁 '+p.combos.map(c=>c.qty+'件$'+c.price).join(' / '):''}</div>
-        <div style="font-size:.69rem;color:var(--muted);">${p.colors||''} ${p.sizes?'・'+p.sizes:''}</div>
-      </div>
-      <button class="btn btn-rose btn-sm" onclick="pickProduct('${p.id}')">選擇</button>
-    </div>`;
-  }).join('');
+  el.innerHTML='';
+  list.forEach(function(p){
+    var div=document.createElement('div');
+    div.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);';
+    var imgHtml=p.img?'<img src="'+p.img+'" style="width:42px;height:42px;object-fit:cover;">':'👗';
+    var catHtml=p.cat&&CAT_MAP[p.cat]?'<span style="font-size:.62rem;background:var(--warm);border-radius:3px;padding:1px 4px;">'+CAT_MAP[p.cat]+'</span>':'';
+    var priceHtml=p.price?'單件 '+fm(p.price):'';
+    var comboHtml=p.combos&&p.combos.length?'🎁 '+p.combos.map(function(c){return c.qty+'件$'+c.price;}).join('/'):'';
+    div.innerHTML='<div style="width:42px;height:42px;border-radius:6px;overflow:hidden;background:var(--warm);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">'+imgHtml+'</div>'
+      +'<div style="flex:1;">'
+      +'<div style="font-weight:700;font-size:.84rem;">'+p.name+' '+catHtml+'</div>'
+      +'<div style="font-size:.7rem;color:var(--muted);">'+priceHtml+' '+comboHtml+'</div>'
+      +'<div style="font-size:.7rem;color:var(--muted);">'+(p.colors||'')+' '+(p.sizes?'・'+p.sizes:'')+'</div>'
+      +'</div>';
+    var btn=document.createElement('button');
+    btn.className='btn btn-rose btn-sm';
+    btn.textContent='選擇';
+    btn.onclick=function(){pickProduct(p.id);};
+    div.appendChild(btn);
+    el.appendChild(div);
+  });
 }
 function pickProduct(pid){
   const p=products.find(x=>x.id===pid);if(!p)return;
