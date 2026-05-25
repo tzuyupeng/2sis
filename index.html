@@ -327,7 +327,35 @@ tr:last-child td{border-bottom:none;}
   </div>
   </div><!-- end order-form-wrap -->
 
-  <!-- 新增商品到訂單 Modal -->
+  <!-- 編輯訂單客戶資訊 Modal -->
+<div class="overlay" id="modal-edit-order-info" onclick="closeOv('modal-edit-order-info',event)">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd"><div class="modal-title">✏️ 編輯客戶資訊</div><button class="xbtn" onclick="closeM('modal-edit-order-info')">✕</button></div>
+    <div class="fr">
+      <div class="fg"><label>LINE 暱稱</label><input type="text" id="eoi-line" placeholder="LINE 名字"></div>
+      <div class="fg"><label>本名（寄件用）</label><input type="text" id="eoi-real" placeholder="真實姓名"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>電話</label><input type="text" id="eoi-phone" placeholder="0912-345-678"></div>
+      <div class="fg"><label>7-11 店名</label><input type="text" id="eoi-store" placeholder="例：信義光復門市"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>付款方式</label>
+        <select id="eoi-pay"><option>貨到付款</option><option>轉帳</option><option>LINE Pay</option><option>現金</option></select>
+      </div>
+      <div class="fg"><label>付款狀態</label>
+        <select id="eoi-paid"><option value="unpaid">待確認</option><option value="paid">已付款</option></select>
+      </div>
+    </div>
+    <div class="fr"><div class="fg w2"><label>備註</label><textarea id="eoi-note" placeholder="備註..." style="min-height:50px;"></textarea></div></div>
+    <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:10px;">
+      <button class="btn btn-ghost" onclick="closeM('modal-edit-order-info')">取消</button>
+      <button class="btn btn-primary" onclick="saveOrderInfo()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增商品到訂單 Modal -->
 <div class="overlay" id="modal-add-item" onclick="closeOv('modal-add-item',event)">
   <div class="modal" style="max-width:420px">
     <div class="modal-hd"><div class="modal-title">➕ 新增商品到訂單</div><button class="xbtn" onclick="closeM('modal-add-item')">✕</button></div>
@@ -1202,6 +1230,7 @@ function addItem(name='',color='',size='',qty=1,price='',prodId='',src='preorder
     <div class="fg is"><label>尺寸</label>${sizeField}</div>
     <div class="fg iq"><label>數量</label><input type="number" class="i-q" value="${qty}" min="1" oninput="calcTotal();updateComboHint('${id}','${prodId}')"></div>
     <div class="fg ip"><label>單價</label><input type="number" class="i-p" value="${price}" placeholder="580" oninput="calcTotal()"></div>
+    ${comboSelector}
     <div class="fg isrc"><label>來源</label>
       <select class="i-src">
         <option value="preorder" ${src==='preorder'?'selected':''}>📋 預購</option>
@@ -1219,6 +1248,28 @@ function addItem(name='',color='',size='',qty=1,price='',prodId='',src='preorder
 
 function updateComboHint(rowId,prodId){
   // Just trigger calcTotal which now handles cross-row combo logic
+  calcTotal();
+}
+
+function applyCombo(rowId,val){
+  const row=document.getElementById(rowId);if(!row)return;
+  if(!val){calcTotal();return;}
+  const parts=val.split('/');
+  const comboTotal=parseFloat(parts[0]);
+  const comboQty=parseInt(parts[1]);
+  const unitPrice=Math.round((comboTotal/comboQty)*100)/100;
+  const pid=row.querySelector('.i-pid')?.value;
+  if(pid){
+    document.querySelectorAll('#items-wrap .irow').forEach(r=>{
+      if(r.querySelector('.i-pid')?.value===pid){
+        r.querySelector('.i-p').value=unitPrice;
+        const hint=document.getElementById('ch-'+r.id);
+        if(hint)hint.textContent='🎁 套用'+comboQty+'件組合價，單價 $'+unitPrice;
+      }
+    });
+  } else {
+    row.querySelector('.i-p').value=unitPrice;
+  }
   calcTotal();
 }
 
@@ -1486,13 +1537,16 @@ function viewOrder(id){
 
   document.getElementById('mo-body').innerHTML=`
     ${o.img?`<img src="${o.img}" style="width:100%;max-height:120px;object-fit:cover;border-radius:7px;margin-bottom:9px;">`:''}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:.82rem;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;font-size:.82rem;">
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">LINE暱稱</div><b>${o.linename}</b></div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">本名</div>${o.realname||'—'}</div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">電話</div>${o.phone||'—'}</div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">7-11門市</div>${o.store||'—'}</div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">付款</div>${o.pay}</div>
       <div><div style="font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:1px;">付款狀態</div><span class="badge ${o.paidStatus==='paid'?'b-paid':'b-unpaid'}">${o.paidStatus==='paid'?'已付款':'待確認'}</span></div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="openEditOrderInfo('${o.id}')">✏️ 編輯客戶資訊</button>
     </div>
 
     <div style="font-size:.76rem;font-weight:700;color:var(--mauve);margin-bottom:6px;">🛍️ 商品到貨狀態</div>
@@ -2010,6 +2064,38 @@ function confirmReturn(){
   renderList();
   renderProducts();
   toast(`✅ 退貨完成！已退回 ${returnedItems.reduce((s,i)=>s+i.returnQty,0)} 件庫存${shipFee>0?'，運費$'+shipFee+'已記入支出':''}`)
+}
+
+// ════════════ EDIT ORDER INFO ════════════
+let editOrderInfoId=null;
+
+function openEditOrderInfo(orderId){
+  const o=orders.find(x=>x.id===orderId);if(!o)return;
+  editOrderInfoId=orderId;
+  document.getElementById('eoi-line').value=o.linename||'';
+  document.getElementById('eoi-real').value=o.realname||'';
+  document.getElementById('eoi-phone').value=o.phone||'';
+  document.getElementById('eoi-store').value=o.store||'';
+  document.getElementById('eoi-pay').value=o.pay||'貨到付款';
+  document.getElementById('eoi-paid').value=o.paidStatus||'unpaid';
+  document.getElementById('eoi-note').value=o.note||'';
+  closeM('modal-order');
+  document.getElementById('modal-edit-order-info').classList.add('open');
+}
+
+function saveOrderInfo(){
+  const o=orders.find(x=>x.id===editOrderInfoId);if(!o)return;
+  o.linename=document.getElementById('eoi-line').value.trim()||o.linename;
+  o.realname=document.getElementById('eoi-real').value.trim();
+  o.phone=document.getElementById('eoi-phone').value.trim();
+  o.store=document.getElementById('eoi-store').value.trim();
+  o.pay=document.getElementById('eoi-pay').value;
+  o.paidStatus=document.getElementById('eoi-paid').value;
+  o.note=document.getElementById('eoi-note').value;
+  save();
+  closeM('modal-edit-order-info');
+  renderList();
+  toast('✅ 客戶資訊已更新！');
 }
 
 // ════════════ ADD ITEM TO ORDER ════════════
