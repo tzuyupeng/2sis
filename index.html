@@ -1218,7 +1218,7 @@ function parseLine(){
   document.getElementById('f-real').value=realname;
   document.getElementById('f-phone').value=phone;
   document.getElementById('f-store').value=store;
-  document.getElementById('items-wrap').innerHTML='';iCnt=0;
+  document.getElementById('items-wrap').innerHTML='';iCnt=0;calcTotal();
   const lines=msg.split('\n');let found=false;
   lines.forEach(l=>{
     const t=l.trim();if(!t)return;
@@ -1917,7 +1917,13 @@ function toggleOrderForm(){
   wrap.style.display=isOpen?'none':'block';
   btn.textContent=isOpen?'➕ 新增訂單':'✕ 收起';
   btn.className=isOpen?'btn btn-primary':'btn btn-ghost';
-  if(!isOpen) wrap.scrollIntoView({behavior:'smooth',block:'start'});
+  if(!isOpen){
+    // Clear items wrap when opening fresh
+    document.getElementById('items-wrap').innerHTML='';
+    iCnt=0;
+    calcTotal();
+    wrap.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 }
 function toggleShopeeForm(){
   const wrap=document.getElementById('shopee-form-wrap');
